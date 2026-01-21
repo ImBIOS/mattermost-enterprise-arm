@@ -1,9 +1,8 @@
 FROM rust:1-alpine AS planner
 WORKDIR /app
-RUN apk add --no-cache cargo-chef
 COPY Cargo.toml ./
 COPY src ./src
-RUN cargo-chef prepare --recipe recipe.json
+RUN cargo install cargo-chef --locked && cargo chef prepare --recipe-path recipe.json
 
 FROM rust:1-alpine AS builder
 WORKDIR /app
@@ -12,25 +11,25 @@ RUN apk add --no-cache \
     libressl-dev \
     sqlite-dev \
     musl-dev
+RUN cargo install cargo-chef --locked
 COPY --from=planner /app/recipe.json ./
-RUN cargo-chef cook --release
+RUN cargo chef cook --release --recipe-path recipe.json
 
 COPY . .
 RUN cargo build --release
 
-# Runtime image - distroless for minimal size
-FROM gcr.io/distroless/cc-debian12:nonroot
+# Runtime image - Alpine for minimal size
+FROM alpine:3.20
 
 # Install runtime dependencies
-RUN apt-get update && apt-get install -y --no-install-recommends \
+RUN apk add --no-cache \
     ca-certificates \
-    sqlite3 \
-    libssl3 \
-    && rm -rf /var/lib/apt/lists/*
+    sqlite \
+    openssl
 
 # Create non-root user
-RUN groupadd -g 1000 appgroup && \
-    useradd -u 1000 -G appgroup -s /bin/sh appuser
+RUN addgroup -g 1000 appgroup && \
+    adduser -u 1000 -G appgroup -s /bin/sh -D appuser
 
 # Create data directory
 RUN mkdir -p /data && chown appuser:appgroup /data

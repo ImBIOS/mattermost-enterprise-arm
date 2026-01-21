@@ -4,10 +4,14 @@ on:
     branches:
       - main
       - support-**
+    paths-ignore:
+      - 'telemetry-server/**'
   pull_request:
     branches:
       - main
       - support-**
+    paths-ignore:
+      - 'telemetry-server/**'
 
 permissions:
   contents: write
