@@ -12,7 +12,7 @@ services:
     volumes:
       - telemetry_data:/data
     environment:
-      - SERVICE_URL_TELEMETRY_8080
+      - SERVICE_URL_TELEMETRY-SERVER_8080
       - SERVER_ADDRESS=0.0.0.0:8080
       - DATABASE_URL=sqlite:///data/telemetry.db
     healthcheck:
@@ -31,9 +31,9 @@ services:
       - grafana_provisioning:/etc/grafana/provisioning:ro
       - grafana_dashboards:/etc/grafana/provisioning/dashboards:ro
     environment:
-      - SERVICE_URL_GRAFANA_3000
-      - GF_SECURITY_ADMIN_USER=${GRAFANA_USER:-admin}
-      - GF_SECURITY_ADMIN_PASSWORD=${GRAFANA_PASSWORD:-admin}
+      - SERVICE_URL_GRAFANA-SERVER_3000
+      - GF_SECURITY_ADMIN_USER=${SERVICE_USER_GRAFANA-SERVER:-admin}
+      - GF_SECURITY_ADMIN_PASSWORD=${SERVICE_PASSWORD_GRAFANA-SERVER:-admin}
       - GF_USERS_ALLOW_SIGN_UP=false
       - GF_INSTALL_PLUGINS=grafana-simple-json-datasource
     depends_on:
