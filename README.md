@@ -2,9 +2,9 @@
 
 [![Docker Pulls](https://badgen.net/docker/pulls/imbios/mattermost-app?icon=docker&label=pulls)](https://hub.docker.com/r/imbios/mattermost-app)
 [![Docker Stars](https://badgen.net/docker/stars/imbios/mattermost-app?icon=docker&label=stars)](https://hub.docker.com/r/imbios/mattermost-app)
-![Github stars](https://badgen.net/github/stars/ImBIOS/mattermost-docker-arm?icon=github&label=stars)
-![Github forks](https://badgen.net/github/forks/ImBIOS/mattermost-docker-arm?icon=github&label=forks)
-![Github issues](https://img.shields.io/github/issues/ImBIOS/mattermost-docker-arm)
+![Github stars](https://badgen.net/github/stars/ImBIOS/mattermost-enterprise-arm?icon=github&label=stars)
+![Github forks](https://badgen.net/github/forks/ImBIOS/mattermost-enterprise-arm?icon=github&label=forks)
+![Github issues](https://img.shields.io/github/issues/ImBIOS/mattermost-enterprise-arm)
 
 Deploy a production-ready Mattermost messaging platform on ARM architecture devices including Raspberry Pi 4/5, ARM servers, and other ARM64/ARMv7 hardware. This repository provides Docker-based deployment with automated CI/CD builds and releases.
 
@@ -71,4 +71,4 @@ Contributions welcome—open issues or PRs for bug fixes and improvements.
 
 ## Credits
 
-Original repository for source code: <https://github.com/remiheens/mattermost-docker-arm>
+Original repository for source code: <https://github.com/remiheens/mattermost-enterprise-arm>
