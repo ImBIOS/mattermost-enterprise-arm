@@ -3,7 +3,6 @@ WORKDIR /app
 RUN apk add --no-cache cargo-chef
 COPY Cargo.toml ./
 COPY src ./src
-RUN mkdir -p src && touch src/lib.rs
 RUN cargo-chef prepare --recipe recipe.json
 
 FROM rust:1-alpine AS builder
