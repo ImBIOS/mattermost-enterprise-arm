@@ -1,11 +1,11 @@
 name: Package and release
 on:
   push:
-    branches: 
+    branches:
       - main
       - support-**
   pull_request:
-    branches: 
+    branches:
       - main
       - support-**
 
@@ -77,4 +77,3 @@ jobs:
           files: |
             mattermost-${{ env.MATTERMOST_VERSION }}-${{ matrix.os }}-${{ matrix.arch }}.tar.gz
             mattermost-${{ env.MATTERMOST_VERSION }}-${{ matrix.os }}-${{ matrix.arch }}.tar.gz.sha512sum
-  

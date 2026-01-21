@@ -20,8 +20,6 @@ services:
       timeout: 5s
       start_period: 15s
       retries: 3
-    labels:
-      - "coolify.managed=true"
 
   grafana:
     image: grafana/grafana-enterprise:12.3.1
@@ -40,11 +38,7 @@ services:
     depends_on:
       telemetry-server:
         condition: service_healthy
-    labels:
-      - "coolify.managed=true"
 
 volumes:
   telemetry_data:
-    driver: local
   grafana_data:
-    driver: local
