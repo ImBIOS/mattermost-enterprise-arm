@@ -32,8 +32,8 @@ services:
       - grafana_dashboards:/etc/grafana/provisioning/dashboards:ro
     environment:
       - SERVICE_URL_GRAFANA-SERVER_3000
-      - GF_SECURITY_ADMIN_USER=${SERVICE_USER_GRAFANA-SERVER:-admin}
-      - GF_SECURITY_ADMIN_PASSWORD=${SERVICE_PASSWORD_GRAFANA-SERVER:-admin}
+      - GF_SECURITY_ADMIN_USER=${SERVICE_USER_GRAFANA-SERVER}
+      - GF_SECURITY_ADMIN_PASSWORD=${SERVICE_PASSWORD_GRAFANA-SERVER}
       - GF_USERS_ALLOW_SIGN_UP=false
       - GF_INSTALL_PLUGINS=grafana-simple-json-datasource
     depends_on:
