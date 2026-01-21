@@ -38,7 +38,3 @@ services:
     depends_on:
       telemetry-server:
         condition: service_healthy
-
-volumes:
-  telemetry_data:
-  grafana_data:
