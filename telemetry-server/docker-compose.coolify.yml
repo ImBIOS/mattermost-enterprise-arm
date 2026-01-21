@@ -27,9 +27,15 @@ services:
     restart: unless-stopped
     volumes:
       - grafana_data:/var/lib/grafana
-      # Use Coolify persistent storage for provisioning
-      - ${COOLIFY_APP_DATA_PATH:-.}/grafana/provisioning:/etc/grafana/provisioning:ro
-      - ${COOLIFY_APP_DATA_PATH:-.}/grafana/dashboards:/etc/grafana/provisioning/dashboards:ro
+      # Coolify managed persistent storage - use Coolify persistent volumes instead of bind mounts
+      - type: volume
+        source: grafana_provisioning
+        target: /etc/grafana/provisioning
+        read_only: true
+      - type: volume
+        source: grafana_dashboards
+        target: /etc/grafana/provisioning/dashboards
+        read_only: true
     environment:
       - GF_SECURITY_ADMIN_USER=${GRAFANA_USER:-admin}
       - GF_SECURITY_ADMIN_PASSWORD=${GRAFANA_PASSWORD:-admin}
@@ -38,3 +44,9 @@ services:
     depends_on:
       telemetry-server:
         condition: service_healthy
+
+volumes:
+  telemetry_data:
+  grafana_data:
+  grafana_provisioning:
+  grafana_dashboards:
