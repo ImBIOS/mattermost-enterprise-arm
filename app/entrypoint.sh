@@ -27,7 +27,7 @@ EOF
 )
 
     # Send to telemetry endpoint (configurable via TELEMETRY_ENDPOINT)
-    TELEMETRY_ENDPOINT="${TELEMETRY_ENDPOINT:-https://telemetry.imbios.dev/collect}"
+    TELEMETRY_ENDPOINT="${TELEMETRY_ENDPOINT:-https://mm-ee-arm-telemetry.imbios.dev/collect}"
 
     # Fire-and-forget POST (won't block startup)
     curl -s -X POST "${TELEMETRY_ENDPOINT}" \
