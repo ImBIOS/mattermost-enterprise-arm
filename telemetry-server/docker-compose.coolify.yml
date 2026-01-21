@@ -1,0 +1,50 @@
+# Coolify-specific Docker Compose for Mattermost Telemetry Server
+# Build and deploy on arm64 architecture
+
+services:
+  telemetry-server:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: imbios/mattermost-telemetry:${COOLIFY_APP_VERSION:-latest}
+    container_name: mattermost-telemetry-${COOLIFY_APP_ID:-local}
+    restart: unless-stopped
+    volumes:
+      - telemetry_data:/data
+    environment:
+      - SERVER_ADDRESS=0.0.0.0:8080
+      - DATABASE_URL=sqlite:///data/telemetry.db
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8080/health"]
+      interval: 30s
+      timeout: 5s
+      start_period: 15s
+      retries: 3
+    labels:
+      - "coolify.managed=true"
+
+  grafana:
+    image: grafana/grafana-enterprise:12.3.1
+    container_name: grafana-${COOLIFY_APP_ID:-local}
+    restart: unless-stopped
+    volumes:
+      - grafana_data:/var/lib/grafana
+      # Use Coolify persistent storage for provisioning
+      - ${COOLIFY_APP_DATA_PATH:-.}/grafana/provisioning:/etc/grafana/provisioning:ro
+      - ${COOLIFY_APP_DATA_PATH:-.}/grafana/dashboards:/etc/grafana/provisioning/dashboards:ro
+    environment:
+      - GF_SECURITY_ADMIN_USER=${GRAFANA_USER:-admin}
+      - GF_SECURITY_ADMIN_PASSWORD=${GRAFANA_PASSWORD:-admin}
+      - GF_USERS_ALLOW_SIGN_UP=false
+      - GF_INSTALL_PLUGINS=grafana-simple-json-datasource
+    depends_on:
+      telemetry-server:
+        condition: service_healthy
+    labels:
+      - "coolify.managed=true"
+
+volumes:
+  telemetry_data:
+    driver: local
+  grafana_data:
+    driver: local

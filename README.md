@@ -1,10 +1,10 @@
 # Mattermost Docker for ARM - Enterprise Edition on Raspberry Pi and ARM Servers
 
-[![Docker Pulls](https://badgen.net/docker/pulls/rheens/mattermost-app?icon=docker&label=pulls)](https://hub.docker.com/r/rheens/mattermost-app)
-[![Docker Stars](https://badgen.net/docker/stars/rheens/mattermost-app?icon=docker&label=stars)](https://hub.docker.com/r/rheens/mattermost-app)
-![Github stars](https://badgen.net/github/stars/remiheens/mattermost-docker-arm?icon=github&label=stars)
-![Github forks](https://badgen.net/github/forks/remiheens/mattermost-docker-arm?icon=github&label=forks)
-![Github issues](https://img.shields.io/github/issues/remiheens/mattermost-docker-arm)
+[![Docker Pulls](https://badgen.net/docker/pulls/imbios/mattermost-app?icon=docker&label=pulls)](https://hub.docker.com/r/imbios/mattermost-app)
+[![Docker Stars](https://badgen.net/docker/stars/imbios/mattermost-app?icon=docker&label=stars)](https://hub.docker.com/r/imbios/mattermost-app)
+![Github stars](https://badgen.net/github/stars/ImBIOS/mattermost-docker-arm?icon=github&label=stars)
+![Github forks](https://badgen.net/github/forks/ImBIOS/mattermost-docker-arm?icon=github&label=forks)
+![Github issues](https://img.shields.io/github/issues/ImBIOS/mattermost-docker-arm)
 
 Deploy a production-ready Mattermost messaging platform on ARM architecture devices including Raspberry Pi 4/5, ARM servers, and other ARM64/ARMv7 hardware. This repository provides Docker-based deployment with automated CI/CD builds and releases.
 
@@ -41,16 +41,7 @@ Deploy a production-ready Mattermost messaging platform on ARM architecture devi
 
 3. **Access your instance:**
 
-   Open http://localhost:8000 and complete the initial setup.
-
-## Available Tags
-
-| Tag | Description |
-|-----|-------------|
-| `latest` | Most recent stable release |
-| `v11.x` | Mattermost v11.x releases |
-| `v10.x` | Mattermost v10.x releases |
-| `v9.x` | Mattermost v9.x releases |
+   Open <http://localhost:8000> and complete the initial setup.
 
 ## Building from Source
 
@@ -80,4 +71,4 @@ Contributions welcome—open issues or PRs for bug fixes and improvements.
 
 ## Credits
 
-Original repository for source code: https://github.com/SmartHoneybee/ubiquitous-memory
+Original repository for source code: <https://github.com/remiheens/mattermost-docker-arm>

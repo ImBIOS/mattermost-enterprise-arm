@@ -1,0 +1,36 @@
+[package]
+name = "mattermost-telemetry"
+version = "1.0.0"
+edition = "2024"
+description = "Lightweight telemetry server for Mattermost Docker deployments"
+authors = ["Imamuzzaki Abu Salam <imamuzzaki@gmail.com>"]
+
+[dependencies]
+actix-web = "4"
+actix-cors = "0.7"
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+chrono = { version = "0.4", features = ["serde"] }
+uuid = { version = "1.0", features = ["v4", "serde"] }
+sqlx = { version = "0.7", features = [
+  "sqlite",
+  "chrono",
+  "runtime-tokio",
+  "uuid",
+] }
+thiserror = "2.0.18"
+env_logger = "0.11"
+log = "0.4"
+anyhow = "1.0"
+
+[dev-dependencies]
+reqwest = { version = "0.13.1", features = ["json"] }
+tokio = { version = "1.0", features = ["full"] }
+wiremock = "0.5"
+tempfile = "3.0"
+
+[profile.release]
+opt-level = 3
+lto = true
+codegen-units = 1
+strip = true

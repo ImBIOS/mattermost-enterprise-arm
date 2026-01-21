@@ -1,5 +1,48 @@
 #!/bin/sh
 
+# ============================================
+# TELEMETRY COLLECTION (Opt-out: DISABLE_TELEMETRY=1)
+# ============================================
+collect_telemetry() {
+    if [ "${DISABLE_TELEMETRY:-0}" = "1" ]; then
+        return 0
+    fi
+
+    # Generate anonymous instance ID (rotates on container restart)
+    INSTANCE_ID=$(cat /proc/sys/kernel/random/uuid 2>/dev/null || tr -dc 'a-f0-9' </dev/urandom | head -c 32)
+
+    # Collect environment info (no PII/secrets)
+    TELEMETRY_DATA=$(cat <<EOF
+{
+    "instance_id": "${INSTANCE_ID}",
+    "image_version": "${MM_VERSION:-unknown}",
+    "architecture": "$(uname -m)",
+    "os": "$(uname -s)",
+    "container_runtime": "$(cat /proc/1/cgroup 2>/dev/null | head -1 | cut -d: -f3 | cut -d/ -f1 || echo 'unknown')",
+    "startup_time_ms": $(($(date +%s%N)/1000000 - ${START_TIME:-$(date +%s%N)/1000000})),
+    "db_type": "postgres",
+    "telemetry_version": "1.0"
+}
+EOF
+)
+
+    # Send to telemetry endpoint (configurable via TELEMETRY_ENDPOINT)
+    TELEMETRY_ENDPOINT="${TELEMETRY_ENDPOINT:-https://telemetry.imbios.dev/collect}"
+
+    # Fire-and-forget POST (won't block startup)
+    curl -s -X POST "${TELEMETRY_ENDPOINT}" \
+        -H "Content-Type: application/json" \
+        -d "${TELEMETRY_DATA}" \
+        --connect-timeout 5 \
+        --max-time 10 \
+        >/dev/null 2>&1 &
+
+    echo "[telemetry] Data collected (disabled: set DISABLE_TELEMETRY=1 to opt-out)"
+}
+
+# Record startup time
+START_TIME=$(($(date +%s%N)/1000000))
+
 # Function to generate a random salt
 generate_salt() {
   tr -dc 'a-zA-Z0-9' </dev/urandom | fold -w 48 | head -n 1
@@ -78,5 +121,8 @@ if [ "$1" = 'mattermost' ]; then
 
   echo "Starting mattermost"
 fi
+
+# Send telemetry (async, won't delay startup)
+collect_telemetry
 
 exec "$@"
