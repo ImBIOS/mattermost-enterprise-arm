@@ -1,39 +1,37 @@
-FROM rust:1.92-alpine AS builder
-
+FROM rust:1-alpine AS planner
 WORKDIR /app
+RUN apk add --no-cache cargo-chef
+COPY Cargo.toml ./
+COPY src ./src
+RUN mkdir -p src && touch src/lib.rs
+RUN cargo-chef prepare --recipe recipe.json
 
-# Install build dependencies
+FROM rust:1-alpine AS builder
+WORKDIR /app
 RUN apk add --no-cache \
     pkgconfig \
     libressl-dev \
     sqlite-dev \
-    musl-dev \
-    cargo
+    musl-dev
+COPY --from=planner /app/recipe.json ./
+RUN cargo-chef cook --release
 
-# Copy dependency files first for better caching
-COPY Cargo.toml ./
-COPY src ./src
-RUN mkdir -p src && touch src/lib.rs
-
-# Build dependencies
+COPY . .
 RUN cargo build --release
 
-# Build the application
-COPY src ./src
-RUN cargo build --release
-
-# Runtime image
-FROM alpine:3.22
+# Runtime image - distroless for minimal size
+FROM gcr.io/distroless/cc-debian12:nonroot
 
 # Install runtime dependencies
-RUN apk add --no-cache \
+RUN apt-get update && apt-get install -y --no-install-recommends \
     ca-certificates \
-    curl \
-    sqlite-libs
+    sqlite3 \
+    libssl3 \
+    && rm -rf /var/lib/apt/lists/*
 
 # Create non-root user
-RUN addgroup -g 1000 appgroup && \
-    adduser -u 1000 -G appgroup -s /bin/sh -D appuser
+RUN groupadd -g 1000 appgroup && \
+    useradd -u 1000 -G appgroup -s /bin/sh appuser
 
 # Create data directory
 RUN mkdir -p /data && chown appuser:appgroup /data
@@ -53,7 +51,7 @@ WORKDIR /data
 
 # Health check
 HEALTHCHECK --interval=30s --timeout=3s --start-period=10s --retries=3 \
-    CMD curl -f http://localhost:8080/health || exit 1
+    CMD ["mattermost-telemetry"]
 
 # Run the application
 CMD ["mattermost-telemetry"]
