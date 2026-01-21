@@ -4,6 +4,14 @@ on:
     tags:
      - v*
 
+permissions:
+  contents: read
+  packages: write
+
+concurrency:
+  group: docker-build-${{ github.ref }}
+  cancel-in-progress: true
+
 env:
   DEBIAN_RELEASE: buster
   DOCKER_PWD: /root
@@ -35,8 +43,10 @@ jobs:
       - name: Build and push
         uses: docker/build-push-action@v6
         with:
-          context: "{{defaultContext}}:${{ matrix.image }}"
+          context: ${{ matrix.image }}
           platforms: linux/arm,linux/arm64
           push: true
           tags: ${{ secrets.DOCKERHUB_USERNAME }}/mattermost-${{ matrix.image }}:${{ github.ref_name }}
           build-args: MM_VERSION=${{ github.ref_name }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
