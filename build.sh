@@ -40,7 +40,7 @@ if [ "$(id -u)" -eq 0 ]; then # as root user
 	apt-get update
 	# install dependencies
 	apt-get install --quiet \
-		wget build-essential patch git python3 
+		wget build-essential patch git python3
 	# install 'pngquant' build dependencies (required by node module)
 	apt-get build-dep --quiet \
 		pngquant
@@ -127,14 +127,14 @@ make --directory="${HOME}/go/src/github.com/mattermost/mattermost/server" \
 make --directory="${HOME}/go/src/github.com/mattermost/mattermost/server" \
 	build-linux package-linux \
 	BUILD_NUMBER="dev-$(go env GOOS)-$(go env GOARCH)-${MATTERMOST_VERSION}" \
-	BUILD_BOARDS=0 \
-	BUILD_ENTERPRISE=0 \
+	BUILD_BOARDS=1 \
+	BUILD_ENTERPRISE=1 \
 	GO="GOARCH=$(go env GOARCH) GOOS=$(go env GOOS) $(command -v go)" \
 	PLUGIN_PACKAGES=''
 # test archive before using it by listing its contents
-tar -tzf "${HOME}/go/src/github.com/mattermost/mattermost/server/dist/mattermost-team-linux-amd64.tar.gz"
+tar -tzf "${HOME}/go/src/github.com/mattermost/mattermost/server/dist/mattermost-enterprise-linux-amd64.tar.gz"
 # rename archive and calculate its SHA512 sum
-mv "${HOME}/go/src/github.com/mattermost/mattermost/server/dist/mattermost-team-linux-amd64.tar.gz" \
+mv "${HOME}/go/src/github.com/mattermost/mattermost/server/dist/mattermost-enterprise-linux-amd64.tar.gz" \
 	"${HOME}/mattermost-${MATTERMOST_VERSION}-$(go env GOOS)-$(go env GOARCH).tar.gz"
 sha512sum "${HOME}/mattermost-${MATTERMOST_VERSION}-$(go env GOOS)-$(go env GOARCH).tar.gz" | \
 	tee "${HOME}/mattermost-${MATTERMOST_VERSION}-$(go env GOOS)-$(go env GOARCH).tar.gz.sha512sum"

@@ -1,28 +1,83 @@
+# Mattermost Docker for ARM - Enterprise Edition on Raspberry Pi and ARM Servers
+
 [![Docker Pulls](https://badgen.net/docker/pulls/rheens/mattermost-app?icon=docker&label=pulls)](https://hub.docker.com/r/rheens/mattermost-app)
 [![Docker Stars](https://badgen.net/docker/stars/rheens/mattermost-app?icon=docker&label=stars)](https://hub.docker.com/r/rheens/mattermost-app)
 ![Github stars](https://badgen.net/github/stars/remiheens/mattermost-docker-arm?icon=github&label=stars)
 ![Github forks](https://badgen.net/github/forks/remiheens/mattermost-docker-arm?icon=github&label=forks)
 ![Github issues](https://img.shields.io/github/issues/remiheens/mattermost-docker-arm)
 
-# Mattermost server for ARM (V7 or 64)
+Deploy a production-ready Mattermost messaging platform on ARM architecture devices including Raspberry Pi 4/5, ARM servers, and other ARM64/ARMv7 hardware. This repository provides Docker-based deployment with automated CI/CD builds and releases.
 
-I found a GitHub repository who built tar.gz release with a sourcecode that ca be run on a ARMv7, but I've the needs to run in a docker container. 
+## Features
 
-This repository contains a docker-compose.yml to run a mattermost stack onto a raspberry pi
+- **ARM Architecture Support**: Optimized builds for ARM64 (aarch64) and ARMv7 (armhf) architectures
+- **Docker Compose Orchestration**: Full stack deployment with PostgreSQL database
+- **Automated Builds**: GitHub Actions CI/CD pipeline for consistent, reproducible builds
+- **Enterprise Ready**: Production configuration with WAL-E backup support
+- **Volume Management**: Persistent storage for data, plugins, logs, and configuration
 
-Or, you can find a bunch of script to build docker image based on https://github.com/mattermost/mattermost-server and build within GitHub Actions. 
+## Supported Hardware
 
-Frequently, I create new release and new docker image, so if I'm late, feel free to open a Pull Request.
+- Raspberry Pi 4/5 (ARM64)
+- Raspberry Pi 3B+ (ARMv7)
+- ARM64 servers (AWS Graviton, Ampere Altra, etc.)
+- Any Linux ARM device running Docker
 
-You just have to update ’dependabot/go.mod’ and ’.github/workflows/release.yml’
+## Quick Start
 
-## How to run
+1. **Configure the deployment:**
 
-1. Rename docker-compose.yml.local to docker-compose.yml
-1. Adapt environnement values
-1. Up the stack ’docker-compose up -d’
-1. Go to http://localhost:8000
+   ```bash
+   cp docker-compose.yml.local docker-compose.yml
+   ```
 
-# Credits 
+   Edit `run.env` to customize database credentials, Mattermost instance name, and optional SMTP settings.
 
-Original repository for source code : https://github.com/SmartHoneybee/ubiquitous-memory
+2. **Launch the stack:**
+
+   ```bash
+   docker-compose up -d
+   ```
+
+3. **Access your instance:**
+
+   Open http://localhost:8000 and complete the initial setup.
+
+## Available Tags
+
+| Tag | Description |
+|-----|-------------|
+| `latest` | Most recent stable release |
+| `v11.x` | Mattermost v11.x releases |
+| `v10.x` | Mattermost v10.x releases |
+| `v9.x` | Mattermost v9.x releases |
+
+## Building from Source
+
+For custom builds or development:
+
+```bash
+# Configure build parameters
+export MATTERMOST_VERSION=v11.3.0
+export GO_VERSION=1.24.6
+
+# Build binaries
+./build.sh
+
+# Build Docker images
+docker build -t your-registry/mattermost-app:v11.3.0 ./app
+```
+
+## Repository Maintenance
+
+This project tracks upstream Mattermost releases. To update:
+
+1. Modify `mattermost-release.txt` with the new version
+2. Update `.github/workflows/release.yml` if Go version changes
+3. Submit a pull request with release notes
+
+Contributions welcome—open issues or PRs for bug fixes and improvements.
+
+## Credits
+
+Original repository for source code: https://github.com/SmartHoneybee/ubiquitous-memory
