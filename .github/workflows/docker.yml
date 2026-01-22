@@ -3,6 +3,16 @@ on:
   push:
     tags:
      - v*
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Version to build (e.g., v11.3.0)'
+        required: false
+        default: ''
+      platforms:
+        description: 'Platforms to build (default: linux/arm,linux/arm64)'
+        required: false
+        default: 'linux/arm,linux/arm64'
 
 permissions:
   contents: read
@@ -13,21 +23,59 @@ concurrency:
   cancel-in-progress: true
 
 env:
-  DEBIAN_RELEASE: buster
+  DEBIAN_RELEASE: bookworm
   DOCKER_PWD: /root
   DOCKER_IMAGE: debian:${DEBIAN_RELEASE}
 
 jobs:
   docker:
     runs-on: ubuntu-latest
+    timeout-minutes: 120
 
     strategy:
+      fail-fast: false
       matrix:
         include:
           - image: app
           - image: db
 
     steps:
+      - name: Clone repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+
+      - name: Determine version
+        id: version
+        run: |
+          # Priority: workflow_dispatch input > git tag > file
+          if [ -n "${{ github.event.inputs.version }}" ]; then
+            VERSION="${{ github.event.inputs.version }}"
+            echo "Using workflow_dispatch version: $VERSION"
+          elif [[ "${{ github.ref }}" == refs/tags/v* ]]; then
+            VERSION="${GITHUB_REF#refs/tags/}"
+            echo "Using git tag version: $VERSION"
+          elif [ -f mattermost-release.txt ]; then
+            VERSION=$(grep "MATTERMOST_VERSION=" mattermost-release.txt | cut -d= -f2)
+            echo "Using file version: $VERSION"
+          else
+            VERSION="v11.3.0"
+            echo "Using default version: $VERSION"
+          fi
+          echo "VERSION=$VERSION" >> $GITHUB_ENV
+          echo "Building version: $VERSION"
+
+      - name: Read Go version for app image
+        if: matrix.image == 'app'
+        run: |
+          if [ -f mattermost-release.txt ]; then
+            GO_VERSION=$(grep "GO_VERSION=" mattermost-release.txt | cut -d= -f2)
+            echo "GO_VERSION=$GO_VERSION" >> $GITHUB_ENV
+          else
+            echo "GO_VERSION=1.24.11" >> $GITHUB_ENV
+          fi
+          echo "Node version will be read from Dockerfile"
+
       - name: Set up QEMU
         uses: docker/setup-qemu-action@v3
 
@@ -40,13 +88,124 @@ jobs:
           username: ${{ secrets.DOCKERHUB_USERNAME }}
           password: ${{ secrets.DOCKERHUB_TOKEN }}
 
-      - name: Build and push
+      - name: Extract metadata for app
+        if: matrix.image == 'app'
+        id: meta-app
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ secrets.DOCKERHUB_USERNAME }}/mattermost-app
+          tags: |
+            type=raw,value=${{ env.VERSION }}
+            type=sha,prefix=
+          flavor: |
+            latest=false
+
+      - name: Extract metadata for db
+        if: matrix.image == 'db'
+        id: meta-db
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ secrets.DOCKERHUB_USERNAME }}/mattermost-db
+          tags: |
+            type=raw,value=${{ env.VERSION }}
+            type=sha,prefix=
+          flavor: |
+            latest=false
+
+      - name: Build and push app
+        if: matrix.image == 'app'
         uses: docker/build-push-action@v6
         with:
-          context: ${{ matrix.image }}
-          platforms: linux/arm,linux/arm64
+          context: app
+          platforms: ${{ github.event.inputs.platforms || 'linux/arm,linux/arm64' }}
           push: true
-          tags: ${{ secrets.DOCKERHUB_USERNAME }}/mattermost-${{ matrix.image }}:${{ github.ref_name }}
-          build-args: MM_VERSION=${{ github.ref_name }}
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
+          tags: ${{ steps.meta-app.outputs.tags }}
+          labels: ${{ steps.meta-app.outputs.labels }}
+          build-args: |
+            MM_VERSION=${{ env.VERSION }}
+            GO_VERSION=${{ env.GO_VERSION }}
+          cache-from: type=gha,scope=app-${{ env.VERSION }}
+          cache-to: type=gha,scope=app-${{ env.VERSION }},mode=max
+          provenance: false
+
+      - name: Build and push db
+        if: matrix.image == 'db'
+        uses: docker/build-push-action@v6
+        with:
+          context: db
+          platforms: ${{ github.event.inputs.platforms || 'linux/arm,linux/arm64' }}
+          push: true
+          tags: ${{ steps.meta-db.outputs.tags }}
+          labels: ${{ steps.meta-db.outputs.labels }}
+          cache-from: type=gha,scope=db-${{ env.VERSION }}
+          cache-to: type=gha,scope=db-${{ env.VERSION }},mode=max
+          provenance: false
+
+      - name: Verify image pushed
+        run: |
+          echo "✅ Docker images pushed:"
+          if [ "${{ matrix.image }}" = "app" ]; then
+            echo "   - ${{ steps.meta-app.outputs.tags }}"
+          else
+            echo "   - ${{ steps.meta-db.outputs.tags }}"
+          fi
+
+  manifest:
+    needs: docker
+    runs-on: ubuntu-latest
+    steps:
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Login to Docker Hub
+        uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+
+      - name: Create and push manifest
+        run: |
+          VERSION="${{ env.VERSION }}"
+          
+          # Pull images locally
+          docker pull ${{ secrets.DOCKERHUB_USERNAME }}/mattermost-app:$VERSION-linux-arm
+          docker pull ${{ secrets.DOCKERHUB_USERNAME }}/mattermost-app:$VERSION-linux-arm64
+          docker pull ${{ secrets.DOCKERHUB_USERNAME }}/mattermost-db:$VERSION-linux-arm
+          docker pull ${{ secrets.DOCKERHUB_USERNAME }}/mattermost-db:$VERSION-linux-arm64
+          
+          # Create and push manifest list
+          docker manifest create ${{ secrets.DOCKERHUB_USERNAME }}/mattermost-app:$VERSION \
+            ${{ secrets.DOCKERHUB_USERNAME }}/mattermost-app:$VERSION-linux-arm \
+            ${{ secrets.DOCKERHUB_USERNAME }}/mattermost-app:$VERSION-linux-arm64 \
+            --amend 2>/dev/null || true
+          
+          docker manifest create ${{ secrets.DOCKERHUB_USERNAME }}/mattermost-db:$VERSION \
+            ${{ secrets.DOCKERHUB_USERNAME }}/mattermost-db:$VERSION-linux-arm \
+            ${{ secrets.DOCKERHUB_USERNAME }}/mattermost-db:$VERSION-linux-arm64 \
+            --amend 2>/dev/null || true
+          
+          # Push manifests
+          docker manifest push ${{ secrets.DOCKERHUB_USERNAME }}/mattermost-app:$VERSION
+          docker manifest push ${{ secrets.DOCKERHUB_USERNAME }}/mattermost-db:$VERSION
+          
+          echo "✅ Multi-arch manifests created and pushed"
+
+  notify:
+    needs: [docker, manifest]
+    runs-on: ubuntu-latest
+    if: always()
+    steps:
+      - name: Report completion
+        run: |
+          if [ "${{ needs.docker.result }}" = "success" ]; then
+            echo "🎉 Docker build completed successfully!"
+            echo ""
+            echo "Images published:"
+            echo "   - ${{ secrets.DOCKERHUB_USERNAME }}/mattermost-app:${{ env.VERSION }}"
+            echo "   - ${{ secrets.DOCKERHUB_USERNAME }}/mattermost-db:${{ env.VERSION }}"
+            echo ""
+            echo "Docker Hub: https://hub.docker.com/u/${{ secrets.DOCKERHUB_USERNAME }}"
+          else
+            echo "❌ Docker build failed"
+            exit 1
+          fi

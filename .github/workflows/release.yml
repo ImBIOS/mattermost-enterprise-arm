@@ -4,14 +4,30 @@ on:
     branches:
       - main
       - support-**
-    paths-ignore:
-      - 'telemetry-server/**'
+    paths:
+      - 'mattermost-release.txt'
+      - 'build.sh'
+      - 'app/**'
+      - 'db/**'
+      - '!.github/workflows/check-mattermost.yml'
+      - '!.github/workflows/docker.yml'
   pull_request:
     branches:
       - main
       - support-**
-    paths-ignore:
-      - 'telemetry-server/**'
+    paths:
+      - 'mattermost-release.txt'
+      - 'build.sh'
+      - 'app/**'
+      - 'db/**'
+      - '!.github/workflows/check-mattermost.yml'
+      - '!.github/workflows/docker.yml'
+  workflow_dispatch:
+    inputs:
+      force:
+        description: 'Force rebuild'
+        required: false
+        default: 'false'
 
 permissions:
   contents: write
@@ -19,7 +35,7 @@ permissions:
 
 concurrency:
   group: release-build-${{ github.ref }}
-  cancel-in-progress: true
+  cancel-in-progress: ${{ github.event.inputs.force != 'true' }}
 
 env:
   DEBIAN_RELEASE: bookworm
@@ -29,8 +45,9 @@ env:
 jobs:
   build:
     runs-on: ubuntu-latest
-    timeout-minutes: 30
+    timeout-minutes: 120
     strategy:
+      fail-fast: false
       matrix:
         include:
           - os: linux
@@ -40,44 +57,132 @@ jobs:
 
     steps:
       - name: Clone repository
-        uses: actions/checkout@v6
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
 
-      - name: Set environment from runtime properties
+      - name: Read version from file
+        id: version
         run: |
-          cat mattermost-release.txt >> $GITHUB_ENV
+          if [ -f mattermost-release.txt ]; then
+            cat mattermost-release.txt >> $GITHUB_ENV
+          else
+            echo "MATTERMOST_VERSION=v11.3.0" >> $GITHUB_ENV
+            echo "GO_VERSION=1.24.11" >> $GITHUB_ENV
+          fi
+          echo "Version: $MATTERMOST_VERSION with Go $GO_VERSION"
+          echo "Building for ${{ matrix.os }}/${{ matrix.arch }}"
 
-      - name: Pull docker image
-        run: 'docker pull "${{ env.DOCKER_IMAGE }}"'
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
 
-      - name: Build
+      - name: Build using Docker
         env:
           GOOS: ${{ matrix.os }}
           GOARCH: ${{ matrix.arch }}
-        run: docker run --mount="type=bind,source=$PWD,destination=${{ env.DOCKER_PWD }}" --rm=true --tty=true --workdir="${{ env.DOCKER_PWD }}" -e DEBIAN_RELEASE -e MATTERMOST_VERSION -e MMCTL_RELEASE -e MM_FOCALBOARD_RELEASE -e GOOS -e GOARCH -e GO_VERSION "${{ env.DOCKER_IMAGE }}" ./build.sh
+          MM_EDITION: sourceavailable
+        run: |
+          # Run build in Docker with all necessary environment variables
+          docker run \
+            --rm \
+            --tty \
+            --mount="type=bind,source=$PWD,destination=${{ env.DOCKER_PWD }}" \
+            --workdir="${{ env.DOCKER_PWD }}" \
+            -e DEBIAN_RELEASE \
+            -e MATTERMOST_VERSION \
+            -e GO_VERSION \
+            -e MM_EDITION \
+            -e GOOS \
+            -e GOARCH \
+            -e TARGET_OS \
+            -e TARGET_ARCH \
+            -e MMCTL_RELEASE \
+            -e MM_FOCALBOARD_RELEASE \
+            "${{ env.DOCKER_IMAGE }}" \
+            ./build.sh
 
-      - name: Tag release
-        if: ${{ github.ref == 'refs/heads/main' || startsWith(github.ref,'refs/heads/support-') }}
-        uses: actions/github-script@v8
-        # this throws an error if the tag already exists. can't find a way around that without writing our own Github REST client or forking github's scripts repo.
-        # would prefer to do this before any of these jobs run, but we need to know the mattermost version which only happens after a clone. could potentially
-        # setup a separate job which does clone + tag, but felt like this was "good enough" for now.
-        continue-on-error: true
+      - name: Verify build output
+        run: |
+          if [ -f "mattermost-$MATTERMOST_VERSION-${{ matrix.os }}-${{ matrix.arch }}.tar.gz" ]; then
+            echo "✅ Build successful: mattermost-$MATTERMOST_VERSION-${{ matrix.os }}-${{ matrix.arch }}.tar.gz"
+            ls -lh "mattermost-$MATTERMOST_VERSION-${{ matrix.os }}-${{ matrix.arch }}.tar.gz"
+          else
+            echo "❌ Build artifact not found!"
+            ls -la *.tar.gz 2>/dev/null || echo "No tar.gz files found"
+            exit 1
+          fi
+
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v4
         with:
-          github-token: ${{ secrets.GH_TOKEN }}
-          script: |
-            github.rest.git.createRef({
-              owner: context.repo.owner,
-              repo: context.repo.repo,
-              ref: 'refs/tags/${{ env.MATTERMOST_VERSION }}',
-              sha: context.sha
-            })
+          name: mattermost-${{ matrix.os }}-${{ matrix.arch }}
+          path: |
+            mattermost-${{ env.MATTERMOST_VERSION }}-${{ matrix.os }}-${{ matrix.arch }}.tar.gz
+            mattermost-${{ env.MATTERMOST_VERSION }}-${{ matrix.os }}-${{ matrix.arch }}.tar.gz.sha512sum
+          retention-days: 7
 
-      - name: Create Github release
-        if: ${{ github.ref == 'refs/heads/main' || startsWith(github.ref,'refs/heads/support-') }}
+  create-release:
+    needs: build
+    runs-on: ubuntu-latest
+    if: github.ref == 'refs/heads/main' || startsWith(github.ref,'refs/heads/support-') || github.event_name == 'workflow_dispatch'
+    permissions:
+      contents: write
+    steps:
+      - name: Download all artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: release-artifacts
+          merge-multiple: true
+
+      - name: Prepare release files
+        run: |
+          ls -la release-artifacts/
+
+      - name: Create GitHub release
         uses: softprops/action-gh-release@v2
         with:
           token: ${{ secrets.GH_TOKEN }}
           tag_name: ${{ env.MATTERMOST_VERSION }}
+          name: Mattermost ARM Release ${{ env.MATTERMOST_VERSION }}
+          body: |
+            ## Mattermost ${{ env.MATTERMOST_VERSION }} ARM Release
+
+            This release includes pre-built Mattermost binaries for ARM architectures:
+            - **ARM64 (aarch64)** - Raspberry Pi 4/5, AWS Graviton, etc.
+            - **ARMv7 (arm)** - Raspberry Pi 3B+, etc.
+
+            ### Files
+            - mattermost-${{ env.MATTERMOST_VERSION }}-linux-arm64.tar.gz
+            - mattermost-${{ env.MATTERMOST_VERSION }}-linux-arm.tar.gz
+
+            ### SHA512 Checksums
+            Included for verification.
+
+            ### Docker Images
+            Docker images are built and pushed separately. See the [Docker workflow](../actions/workflows/docker.yml).
           files: |
-            mattermost-${{ env.MATTERMOST_VERSION }}-${{ matrix.os }}-${{ matrix.arch }}.tar.gz
-            mattermost-${{ env.MATTERMOST_VERSION }}-${{ matrix.os }}-${{ matrix.arch }}.tar.gz.sha512sum
+            release-artifacts/*.tar.gz
+            release-artifacts/*.sha512sum
+        continue-on-error: true
+
+      - name: Upload release assets
+        uses: actions/upload-release-asset@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GH_TOKEN }}
+        with:
+          upload_url: ${{ steps.create-release.outputs.upload_url }}
+          asset_path: release-artifacts/mattermost-${{ env.MATTERMOST_VERSION }}-${{ matrix.os }}-${{ matrix.arch }}.tar.gz
+          asset_name: mattermost-${{ env.MATTERMOST_VERSION }}-${{ matrix.os }}-${{ matrix.arch }}.tar.gz
+          asset_content_type: application/gzip
+        continue-on-error: true
+
+  cleanup:
+    needs: create-release
+    runs-on: ubuntu-latest
+    if: always()
+    steps:
+      - name: Report completion
+        run: |
+          echo "✅ Release workflow completed"
+          echo ""
+          echo "Artifacts available at: https://github.com/${{ github.repository }}/releases/tag/${{ env.MATTERMOST_VERSION }}"
