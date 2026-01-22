@@ -133,23 +133,44 @@ if [ "$(id -u)" -eq 0 ]; then
         rm -f "${ARCHIVE_NAME}.tar.gz" 2>/dev/null || true
         
         echo "Installing Go from package manager as fallback..."
-        apt-get install -qq golang-go golang-1.15 2>/dev/null || \
-        apt-get install -qq golang-1.21 2>/dev/null || \
-        apt-get install -qq golang 2>/dev/null || true
+        # Install golang package which provides the 'go' wrapper/symlink
+        apt-get install -qq golang || true
         
-        # Use system Go if available
-        if command -v go &>/dev/null; then
-            echo "Using system Go installation: $(go version)"
-            export GOROOT=$(go env GOROOT)
-            export PATH=$GOROOT/bin:$PATH
+        # Also install specific version packages for cross-compilation support
+        apt-get install -qq golang-1.21 golang-1.23 2>/dev/null || true
+        
+        # Find the go binary - check multiple possible locations
+        GO_BIN=""
+        for candidate in \
+            "/usr/bin/go" \
+            "/usr/local/go/bin/go" \
+            "/usr/lib/go-1.21/bin/go" \
+            "/usr/lib/go-1.23/bin/go" \
+            "/usr/lib/go/bin/go"
+        do
+            if [ -x "${candidate}" ]; then
+                GO_BIN="${candidate}"
+                break
+            fi
+        done
+        
+        # Use command -v as fallback
+        if [ -z "${GO_BIN}" ] && command -v go &>/dev/null; then
+            GO_BIN="$(command -v go)"
+        fi
+        
+        if [ -n "${GO_BIN}" ]; then
+            echo "Using system Go: ${GO_BIN}"
+            export GOROOT=$("${GO_BIN}" env GOROOT)
+            export PATH="${GOROOT}/bin:$PATH"
             
             # Verify Go works
-            go version || {
+            "${GO_BIN}" version || {
                 echo "ERROR: System Go is not working properly"
                 exit 1
             }
         else
-            echo "ERROR: Could not install Go from package manager"
+            echo "ERROR: Could not find Go binary after package installation"
             exit 1
         fi
     else
