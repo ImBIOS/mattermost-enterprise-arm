@@ -183,17 +183,30 @@ rm -f mattermost.tar.gz
 echo "Building Mattermost webapp..."
 cd "${HOME}/go/src/github.com/mattermost/mattermost/webapp"
 
-# Setup Node.js (nvm)
-if [ ! -d "${HOME}/.nvm" ]; then
-	curl -o- https://raw.githubusercontent.com/nvm-sh/nvm/v0.39.5/install.sh | bash
+# Install Node.js directly (avoid nvm issues in containers)
+NODE_MAJOR_VERSION=20
+if [ ! -d "${HOME}/.node" ]; then
+    echo "Installing Node.js ${NODE_MAJOR_VERSION}..."
+    
+    # Determine architecture
+    ARCH="$(go env GOARCH)"
+    if [ "${ARCH}" = "arm64" ]; then
+        NODE_DOWNLOAD_ARCH="arm64"
+    elif [ "${ARCH}" = "arm" ]; then
+        NODE_DOWNLOAD_ARCH="armv7l"
+    elif [ "${ARCH}" = "amd64" ]; then
+        NODE_DOWNLOAD_ARCH="x64"
+    else
+        NODE_DOWNLOAD_ARCH="${ARCH}"
+    fi
+    
+    wget -q "https://nodejs.org/dist/v${NODE_MAJOR_VERSION}/node-v${NODE_MAJOR_VERSION}-linux-${NODE_DOWNLOAD_ARCH}.tar.xz" && \
+    mkdir -p "${HOME}/.node" && \
+    tar -xJf "node-v${NODE_MAJOR_VERSION}-linux-${NODE_DOWNLOAD_ARCH}.tar.xz" -C "${HOME}/.node" && \
+    rm "node-v${NODE_MAJOR_VERSION}-linux-${NODE_DOWNLOAD_ARCH}.tar.xz"
 fi
 
-export NVM_DIR="$HOME/.nvm"
-[ -s "$NVM_DIR/nvm.sh" ] && \. "$NVM_DIR/nvm.sh"
-
-# Install and use correct Node version
-nvm install
-nvm use
+export PATH="${HOME}/.node/node-v${NODE_MAJOR_VERSION}-linux-${NODE_DOWNLOAD_ARCH}/bin:$PATH"
 
 # Build webapp dist
 npm ci --quiet 2>/dev/null || npm install --quiet

@@ -105,10 +105,7 @@ jobs:
           GO_VERSION="${{ steps.go-version.outputs.go_version }}"
           
           echo "Creating version file for $VERSION with Go $GO_VERSION"
-          cat > mattermost-release.txt << EOF
-MATTERMOST_VERSION=${VERSION}
-GO_VERSION=${GO_VERSION}
-EOF
+          printf 'MATTERMOST_VERSION=%s\nGO_VERSION=%s\n' "$VERSION" "$GO_VERSION" > mattermost-release.txt
           
           cat mattermost-release.txt
 
