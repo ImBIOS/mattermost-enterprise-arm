@@ -111,84 +111,74 @@ if [ "$(id -u)" -eq 0 ]; then
 
     if [ ! -f "${ARCHIVE_NAME}.tar.gz" ]; then
         echo "Downloading Go ${GO_VERSION} for host architecture (${HOST_GO_ARCH})..."
-        # Use go.dev for downloads (more reliable than golang.org)
-        wget -q "https://go.dev/dl/${ARCHIVE_NAME}.tar.gz" || {
-            echo "Failed to download Go ${GO_VERSION}, trying alternative method..."
-            # Try downloading without .tar.gz extension for go.dev redirects
-            wget -q --header="Accept: application/octet-stream" \
-                "https://go.dev/dl/${ARCHIVE_NAME}.tar.gz" && true
+        # Use golang.org download URL directly (more reliable)
+        # go.dev/dl redirects to the actual download URL
+        curl -fsSL -o "${ARCHIVE_NAME}.tar.gz" \
+            "https://golang.org/dl/${ARCHIVE_NAME}.tar.gz" || {
+            echo "Failed to download Go ${GO_VERSION}, trying go.dev..."
+            curl -fsSL -o "${ARCHIVE_NAME}.tar.gz" \
+                "https://go.dev/dl/${ARCHIVE_NAME}.tar.gz" || true
         }
 
         # Verify the downloaded file is actually a tar.gz
         if [ -f "${ARCHIVE_NAME}.tar.gz" ]; then
-            if ! file "${ARCHIVE_NAME}.tar.gz" | grep -qE "gzip|tar"; then
-                echo "ERROR: Downloaded file is not a valid tar.gz archive!"
-                echo "File type: $(file "${ARCHIVE_NAME}.tar.gz")"
+            FILE_TYPE=$(file "${ARCHIVE_NAME}.tar.gz" 2>/dev/null || echo "unknown")
+            if ! echo "$FILE_TYPE" | grep -qE "gzip|tar|Zip"; then
+                echo "ERROR: Downloaded file is not a valid archive!"
+                echo "File type: $FILE_TYPE"
+                rm -f "${ARCHIVE_NAME}.tar.gz"
+            else
+                echo "Download verified: $FILE_TYPE"
+            fi
+        fi
+    fi
+
+    # If download failed, try downloading directly from the CDN
+    if [ ! -f "${ARCHIVE_NAME}.tar.gz" ]; then
+        rm -f "${ARCHIVE_NAME}.tar.gz" 2>/dev/null || true
+        echo "Attempting direct download from Go CDN..."
+
+        # Try direct download from go.dev/dl with redirect following
+        curl -fsSL -L -o "${ARCHIVE_NAME}.tar.gz" \
+            "https://go.dev/dl/${ARCHIVE_NAME}.tar.gz" || true
+
+        if [ -f "${ARCHIVE_NAME}.tar.gz" ]; then
+            FILE_SIZE=$(stat -c%s "${ARCHIVE_NAME}.tar.gz}" 2>/dev/null || echo "0")
+            echo "Downloaded ${FILE_SIZE} bytes"
+            if [ "$FILE_SIZE" -lt 1000000 ]; then
+                echo "ERROR: File too small, download may have failed"
                 rm -f "${ARCHIVE_NAME}.tar.gz"
             fi
         fi
     fi
 
     # If download failed or file is invalid, try installing from apt
-    if [ ! -f "${ARCHIVE_NAME}.tar.gz" ] || [ ! -d /usr/local/go ]; then
+    if [ ! -f "${ARCHIVE_NAME}.tar.gz" ]; then
         rm -f "${ARCHIVE_NAME}.tar.gz" 2>/dev/null || true
-        
-        echo "Installing Go from package manager as fallback..."
-        # Install golang package which provides the 'go' wrapper/symlink
-        apt-get install -qq golang || true
 
-        # Also install specific version packages for cross-compilation support
-        # Try 1.24 first, then 1.23, then 1.21
-        apt-get install -qq golang-1.24 golang-1.23 golang-1.21 2>/dev/null || true
+        echo "ERROR: Failed to download Go ${GO_VERSION}"
+        echo "Cannot continue without Go ${GO_VERSION}.x - go.mod requires it."
+        echo "Please check network connectivity and try again."
+        exit 1
+    fi
 
-        # Find the go binary - check multiple possible locations
-        GO_BIN=""
-        for candidate in \
-            "/usr/local/go/bin/go" \
-            "/usr/lib/go-1.24/bin/go" \
-            "/usr/lib/go-1.23/bin/go" \
-            "/usr/lib/go-1.21/bin/go" \
-            "/usr/lib/go/bin/go" \
-            "/usr/bin/go"
-        do
-            if [ -x "${candidate}" ]; then
-                GO_BIN="${candidate}"
-                break
-            fi
-        done
-        
-        # Use command -v as fallback
-        if [ -z "${GO_BIN}" ] && command -v go &>/dev/null; then
-            GO_BIN="$(command -v go)"
-        fi
-        
-        if [ -n "${GO_BIN}" ]; then
-            echo "Using system Go: ${GO_BIN}"
-            export GOROOT=$("${GO_BIN}" env GOROOT)
-            export PATH="${GOROOT}/bin:$PATH"
-            
-            # Verify Go works
-            "${GO_BIN}" version || {
-                echo "ERROR: System Go is not working properly"
-                exit 1
-            }
-        else
-            echo "ERROR: Could not find Go binary after package installation"
-            exit 1
-        fi
-    else
-        if [ ! -d /usr/local/go ]; then
-            echo "Extracting Go..."
-            tar -xf "${ARCHIVE_NAME}.tar.gz" -C /usr/local
-        fi
-        
-        # Verify Go works
+    # Extract Go if not already present
+    if [ ! -d /usr/local/go ]; then
+        echo "Extracting Go ${GO_VERSION}..."
+        tar -xf "${ARCHIVE_NAME}.tar.gz" -C /usr/local
+    fi
+
+    # Verify Go works
+    if [ -x "/usr/local/go/bin/go" ]; then
         echo "Verifying Go installation..."
         /usr/local/go/bin/go version || {
             echo "ERROR: Downloaded Go binary is not executable!"
-            echo "This might indicate a corrupted download or architecture mismatch."
             exit 1
         }
+    else
+        echo "ERROR: Go binary not found at /usr/local/go/bin/go"
+        echo "Cannot continue without Go ${GO_VERSION}.x - go.mod requires it."
+        exit 1
     fi
 
     # Ensure Go is in PATH for the rest of the script
