@@ -96,8 +96,9 @@ if [ "$(id -u)" -eq 0 ]; then
     # Check if Go version exists, fall back if needed
     if ! wget -q --spider "https://go.dev/dl/${ARCHIVE_NAME}.tar.gz" 2>/dev/null; then
         echo "Go ${GO_VERSION} for ${HOST_GO_ARCH} not available, checking for alternatives..."
-        # Try 1.23.x as fallback (comprehensive list)
-        for fallback_version in 1.23.16 1.23.15 1.23.14 1.23.13 1.23.12 1.23.11 1.23.10 1.23.9 1.23.8 1.23.7 1.23.6 1.23.5 1.23.4 1.23.3 1.23.2 1.23.1 1.23.0; do
+        # Try 1.23.x as fallback (1.24 may not be available yet, and go.mod requires 1.24)
+        # Since go.mod requires 1.24.x, we need to ensure we install a compatible version
+        for fallback_version in 1.24.11 1.24.10 1.24.9 1.24.8 1.24.7 1.24.6 1.24.5 1.24.4 1.24.3 1.24.2 1.24.1 1.24.0; do
             fallback_archive="go${fallback_version}.linux-${HOST_GO_ARCH}"
             if wget -q --spider "https://go.dev/dl/${fallback_archive}.tar.gz" 2>/dev/null; then
                 echo "Using fallback Go version: ${fallback_version}"
@@ -135,18 +136,20 @@ if [ "$(id -u)" -eq 0 ]; then
         echo "Installing Go from package manager as fallback..."
         # Install golang package which provides the 'go' wrapper/symlink
         apt-get install -qq golang || true
-        
+
         # Also install specific version packages for cross-compilation support
-        apt-get install -qq golang-1.21 golang-1.23 2>/dev/null || true
-        
+        # Try 1.24 first, then 1.23, then 1.21
+        apt-get install -qq golang-1.24 golang-1.23 golang-1.21 2>/dev/null || true
+
         # Find the go binary - check multiple possible locations
         GO_BIN=""
         for candidate in \
-            "/usr/bin/go" \
             "/usr/local/go/bin/go" \
-            "/usr/lib/go-1.21/bin/go" \
+            "/usr/lib/go-1.24/bin/go" \
             "/usr/lib/go-1.23/bin/go" \
-            "/usr/lib/go/bin/go"
+            "/usr/lib/go-1.21/bin/go" \
+            "/usr/lib/go/bin/go" \
+            "/usr/bin/go"
         do
             if [ -x "${candidate}" ]; then
                 GO_BIN="${candidate}"
