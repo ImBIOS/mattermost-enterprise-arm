@@ -420,16 +420,17 @@ echo "Build tags: ${BUILD_TAGS}"
 # Reset config
 make config-reset \
     BUILD_NUMBER="dev-${TARGET_OS}-${TARGET_ARCH}-${MATTERMOST_VERSION}" \
-    GO="GOARCH= GOOS= $(command -v go)" \
+    GO="$(command -v go)" \
     PLUGIN_PACKAGES='' 2>/dev/null || true
 
 # Setup go work
 make setup-go-work \
     BUILD_NUMBER="dev-${TARGET_OS}-${TARGET_ARCH}-${MATTERMOST_VERSION}" \
-    GO="GOARCH= GOOS= $(command -v go)" \
+    GO="$(command -v go)" \
     PLUGIN_PACKAGES='' 2>/dev/null || true
 
 # Build with correct Go flags for cross-compilation
+# Set GOOS/GOARCH as environment variables for make
 export GOOS="${TARGET_OS}"
 export GOARCH="${TARGET_ARCH}"
 
@@ -438,7 +439,7 @@ MAKE_FLAGS=(
     "build-linux"
     "package-linux"
     "BUILD_NUMBER=dev-${TARGET_OS}-${TARGET_ARCH}-${MATTERMOST_VERSION}"
-    "GO=${TARGET_OS} ${TARGET_ARCH} $(command -v go)"
+    "GO=$(command -v go)"
     "PLUGIN_PACKAGES="
 )
 
